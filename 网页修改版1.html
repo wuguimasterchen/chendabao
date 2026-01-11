@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>股票定投策略分析（完全离线版）</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: "Microsoft YaHei", Arial, sans-serif;
+      }
+      .container {
+        max-width: 1200px;
+        margin: 20px auto;
+        padding: 0 20px;
+      }
+      .upload-area {
+        border: 2px dashed #ccc;
+        border-radius: 8px;
+        padding: 40px 20px;
+        text-align: center;
+        margin: 20px 0;
+        cursor: pointer;
+        transition: all 0.3s;
+      }
+      .upload-area:hover {
+        border-color: #007bff;
+        background-color: #f8f9fa;
+      }
+      .upload-area input {
+        display: none;
+      }
+      .btn {
+        background-color: #007bff;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin: 10px 0;
+      }
+      .btn:hover {
+        background-color: #0056b3;
+      }
+      .log-area {
+        height: 200px;
+        border: 1px solid #eee;
+        border-radius: 4px;
+        padding: 10px;
+        margin: 20px 0;
+        overflow-y: auto;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+      .chart-area {
+        margin: 30px 0;
+        height: 600px; /* 基础高度，结合响应式调整 */
+        width: 100%; /* 确保宽度占满容器 */
+      }
+      .config-area {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #eee;
+        border-radius: 8px;
+      }
+      .config-item {
+        margin: 10px 0;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .config-item label {
+        width: 150px;
+        text-align: right;
+      }
+      .config-item input,
+      .config-item select {
+        padding: 5px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 200px;
+      }
+      .hidden {
+        display: none;
+      }
+      .data-source-area {
+        margin: 20px 0;
+        padding: 20px;
+        border: 1px solid #eee;
+        border-radius: 8px;
+      }
+      .data-source-tabs {
+        display: flex;
+        margin-bottom: 20px;
+        border-bottom: 1px solid #eee;
+      }
+      .data-source-tab {
+        padding: 10px 20px;
+        cursor: pointer;
+        font-weight: bold;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+      }
+      .data-source-tab.active {
+        border-bottom-color: #007bff;
+        color: #007bff;
+      }
+      .data-source-content {
+        display: none;
+      }
+      .data-source-content.active {
+        display: block;
+      }
+
+      /* 响应式调整 */
+      @media (max-width: 768px) {
+        .chart-area {
+          height: 400px; /* 移动端降低图表高度 */
+        }
+        .config-item {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .config-item label {
+          width: 100%;
+          text-align: left;
+          margin-bottom: 5px;
+        }
+        .config-item input,
+        .config-item select {
+          width: 100%;
+        }
+      }
+    </style>
+
+    <!-- 引入在线Plotly（修复离线版加载问题） -->
+    <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+    <!-- 引入在线SheetJS（修复解析问题） -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <h1>股票定投策略分析（完全离线版）</h1>
+
+      <!-- 数据源选择区 -->
+      <div class="data-source-area">
+        <h3>数据源选择</h3>
+        <div class="data-source-tabs">
+          <div class="data-source-tab active" data-tab="internal">内置数据</div>
+          <div class="data-source-tab" data-tab="external">外部上传</div>
+        </div>
+
+        <!-- 内置数据源内容 -->
+        <div class="data-source-content active" id="internal-tab">
+          <div class="config-item">
+            <label>选择内置数据：</label>
+            <select id="internalDataSelect">
+              <option value="">请选择...</option>
+              <option value="data1">示例数据1：贵州茅台(2019-2020)</option>
+              <option value="data2">示例数据2：腾讯控股(2020-2023)</option>
+              <option value="data3">示例数据3：上证指数(2020-2023)</option>
+            </select>
+          </div>
+          <button class="btn" id="loadInternalDataBtn" disabled>
+            加载内置数据
+          </button>
+        </div>
+
+        <!-- 外部数据源内容 -->
+        <div class="data-source-content" id="external-tab">
+          <div class="upload-area" id="uploadArea">
+            <p>点击或拖拽文件到此处上传（支持Excel/CSV）</p>
+            <p>要求：文件包含「日期」和「收盘价」列</p>
+            <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" />
+          </div>
+        </div>
+      </div>
+
+      <!-- 配置参数区 -->
+      <div class="config-area">
+        <h3>策略参数配置</h3>
+        <div class="config-item">
+          <label>初始本金（元）：</label>
+          <input type="number" id="initialCapital" value="100000" min="1000" />
+        </div>
+        <div class="config-item">
+          <label>开始时间：</label>
+          <input type="date" id="startDate" value="2019-07-15" />
+        </div>
+        <!-- 新增：停止时间配置项 -->
+        <div class="config-item">
+          <label>停止时间：</label>
+          <input type="date" id="endDate" value="2020-07-15" />
+        </div>
+        <div class="config-item">
+          <label>定投金额（元/周）：</label>
+          <input type="number" id="investAmount" value="1000" min="100" />
+        </div>
+        <div class="config-item">
+          <label>底仓比例（%）：</label>
+          <input type="number" id="baseRatio" value="50" min="0" max="100" />
+        </div>
+        <div class="config-item">
+          <label>手续费率（%）：</label>
+          <input
+            type="number"
+            id="feeRate"
+            value="0.1"
+            step="0.01"
+            min="0"
+            max="1"
+          />
+        </div>
+      </div>
+
+      <!-- 操作按钮 -->
+      <button class="btn" id="analyzeBtn" disabled>开始分析</button>
+
+      <!-- 日志输出区 -->
+      <div class="log-area" id="logArea">
+        请选择数据源并加载数据后点击「开始分析」...
+      </div>
+
+      <!-- 图表展示区 - 拆分为两个独立图表 -->
+      <h3>图表1：收益率对比（总收益率 vs 持有收益率）</h3>
+      <div class="chart-area" id="chartArea1" class="hidden"></div>
+
+      <h3>图表2：金额对比（累计投资 vs 累计收益）</h3>
+      <div class="chart-area" id="chartArea2" class="hidden"></div>
+    </div>
+
+    <script>
+      // 全局变量
+      let rawData = null; // 原始数据
+      let resultData = null; // 策略计算结果
+      let logArea = document.getElementById("logArea");
+      let currentDataSource = "internal"; // 当前数据源类型
+
+      // 内置数据定义
+      const internalData = {
+        data1: [
+          { 日期: "2019/7/5", 收盘价: 988.2791777 },
+          { 日期: "2019/7/12", 收盘价: 974.7076617 },
+          { 日期: "2019/7/19", 收盘价: 944.8364882 },
+          { 日期: "2019/7/26", 收盘价: 953.8907552 },
+          { 日期: "2019/8/2", 收盘价: 943.4328791 },
+          { 日期: "2019/8/9", 收盘价: 950.9253839 },
+          { 日期: "2019/8/16", 收盘价: 1042.426858 },
+          { 日期: "2019/8/23", 收盘价: 1117.055369 },
+          { 日期: "2019/8/30", 收盘价: 1128.818008 },
+          { 日期: "2019/9/6", 收盘价: 1129.302352 },
+          { 日期: "2019/9/12", 收盘价: 1086.314353 },
+          { 日期: "2019/9/20", 收盘价: 1144.060017 },
+          { 日期: "2019/9/27", 收盘价: 1161.189978 },
+          { 日期: "2019/9/30", 收盘价: 1136.725665 },
+          { 日期: "2019/10/11", 收盘价: 1161.04171 },
+          { 日期: "2019/10/18", 收盘价: 1162.217974 },
+          { 日期: "2019/10/25", 收盘价: 1157.829224 },
+          { 日期: "2019/11/1", 收盘价: 1171.321664 },
+          { 日期: "2019/11/8", 收盘价: 1191.090806 },
+          { 日期: "2019/11/15", 收盘价: 1210.761102 },
+          { 日期: "2019/11/22", 收盘价: 1180.217777 },
+          { 日期: "2019/11/29", 收盘价: 1115.968066 },
+          { 日期: "2019/12/6", 收盘价: 1156.494807 },
+          { 日期: "2019/12/13", 收盘价: 1149.575607 },
+          { 日期: "2019/12/20", 收盘价: 1133.068374 },
+          { 日期: "2019/12/27", 收盘价: 1149.575607 },
+          { 日期: "2020/1/3", 收盘价: 1066.11029 },
+          { 日期: "2020/1/10", 收盘价: 1099.658524 },
+          { 日期: "2020/1/17", 收盘价: 1094.716238 },
+          { 日期: "2020/1/23", 收盘价: 1040.647635 },
+          { 日期: "2020/2/7", 收盘价: 1063.57984 },
+          { 日期: "2020/2/14", 收盘价: 1075.441325 },
+          { 日期: "2020/2/21", 收盘价: 1100.034137 },
+          { 日期: "2020/2/28", 收盘价: 1044.799155 },
+          { 日期: "2020/3/6", 收盘价: 1142.162179 },
+          { 日期: "2020/3/13", 收盘价: 1099.193949 },
+          { 日期: "2020/3/20", 收盘价: 1023.329866 },
+          { 日期: "2020/3/27", 收盘价: 1063.085611 },
+          { 日期: "2020/4/3", 收盘价: 1126.633518 },
+          { 日期: "2020/4/10", 收盘价: 1151.552522 },
+          { 日期: "2020/4/17", 收盘价: 1211.848405 },
+          { 日期: "2020/4/24", 收盘价: 1236.124911 },
+          { 日期: "2020/4/30", 收盘价: 1251.090151 },
+          { 日期: "2020/5/8", 收盘价: 1299.435588 },
+          { 日期: "2020/5/15", 收盘价: 1297.844172 },
+          { 日期: "2020/5/22", 收盘价: 1312.86872 },
+          { 日期: "2020/5/29", 收盘价: 1350.825473 },
+          { 日期: "2020/6/5", 收盘价: 1408.551368 },
+          { 日期: "2020/6/12", 收盘价: 1400.020983 },
+          { 日期: "2020/6/19", 收盘价: 1423.220071 },
+          { 日期: "2020/6/24", 收盘价: 1460.01 },
+          { 日期: "2020/7/3", 收盘价: 1541.79 },
+          { 日期: "2020/7/6", 收盘价: 1600.0 },
+        ],
+        data2: [
+          { 日期: "2020-01-02", 收盘价: 370.0 },
+          { 日期: "2020-01-03", 收盘价: 365.0 },
+          { 日期: "2020-01-06", 收盘价: 368.0 },
+          { 日期: "2020-01-07", 收盘价: 366.0 },
+          { 日期: "2020-01-08", 收盘价: 370.0 },
+          { 日期: "2023-12-28", 收盘价: 350.0 },
+          { 日期: "2023-12-29", 收盘价: 352.0 },
+          { 日期: "2023-12-30", 收盘价: 355.0 },
+          { 日期: "2023-12-31", 收盘价: 358.0 },
+        ],
+        data3: [
+          { 日期: "2020-01-02", 收盘价: 3085.19 },
+          { 日期: "2020-01-03", 收盘价: 3083.79 },
+          { 日期: "2020-01-06", 收盘价: 3083.41 },
+          { 日期: "2020-01-07", 收盘价: 3074.08 },
+          { 日期: "2020-01-08", 收盘价: 3066.89 },
+          { 日期: "2023-12-28", 收盘价: 2974.93 },
+          { 日期: "2023-12-29", 收盘价: 2990.06 },
+          { 日期: "2023-12-30", 收盘价: 3002.69 },
+          { 日期: "2023-12-31", 收盘价: 3026.97 },
+        ],
+      };
+
+      // 工具函数：日志输出
+      function log(msg) {
+        logArea.innerHTML += new Date().toLocaleString() + " | " + msg + "\n";
+        logArea.scrollTop = logArea.scrollHeight;
+      }
+
+      // 工具函数：转换Excel日期序列号为Date对象
+      function excelSerialToDate(serial) {
+        if (typeof serial !== "number" || isNaN(serial)) return null;
+        const baseDate = new Date(1899, 11, 30); // 修正Excel的1900闰年bug
+        const date = new Date(baseDate.getTime() + serial * 86400000);
+        return date;
+      }
+
+      // 通用日期转换（强制返回有效Date对象）
+      function toValidDate(dateInput) {
+        if (!dateInput) throw new Error("日期不能为空");
+
+        // 处理Excel日期序列号
+        if (typeof dateInput === "number" && !isNaN(dateInput)) {
+          const excelDate = excelSerialToDate(dateInput);
+          if (excelDate && !isNaN(excelDate.getTime())) {
+            dateInput = excelDate;
+          }
+        }
+
+        // 处理Date对象
+        if (dateInput instanceof Date) {
+          if (isNaN(dateInput.getTime())) {
+            throw new Error(`无效的Date对象：${dateInput}`);
+          }
+          const localDate = new Date(dateInput);
+          localDate.setHours(0, 0, 0, 0);
+          return localDate;
+        }
+
+        // 处理字符串
+        if (typeof dateInput === "string") {
+          // 兼容ISO格式
+          if (dateInput.includes("T") && dateInput.includes("Z")) {
+            const utcDate = new Date(dateInput);
+            const localDate = new Date(utcDate);
+            localDate.setHours(0, 0, 0, 0);
+            if (!isNaN(localDate.getTime())) {
+              return localDate;
+            }
+          }
+
+          // 兼容各种日期格式
+          const cleanStr = dateInput
+            .replace(/年|月|日|\.|\/|\\/g, "-")
+            .replace(/-+/g, "-")
+            .trim();
+
+          const date = new Date(cleanStr);
+          if (isNaN(date.getTime())) {
+            throw new Error(`无法解析日期：${dateInput}（推荐格式：2019-11-15）`);
+          }
+          date.setHours(0, 0, 0, 0);
+          return date;
+        }
+
+        throw new Error(`不支持的日期类型：${typeof dateInput}（值：${dateInput}）`);
+      }
+
+      // 计算ISO周数
+      function getISOWeek(date) {
+        const validDate = toValidDate(date);
+        const tempDate = new Date(validDate);
+        tempDate.setHours(0, 0, 0, 0);
+
+        tempDate.setDate(tempDate.getDate() + 3 - ((tempDate.getDay() + 6) % 7));
+        const yearStart = new Date(tempDate.getFullYear(), 0, 1);
+        const diffTime = tempDate - yearStart;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const weekNo = Math.ceil((diffDays + 1) / 7);
+
+        return tempDate.getFullYear() * 100 + weekNo;
+      }
+
+      // 计算Y轴范围
+      function calculateYAxisRanges(data) {
+        const allReturns = [
+          ...data.map((row) => row["一次性买入收益率"] * 100),
+          ...data.map((row) => row["普通定投收益率"] * 100),
+          ...data.map((row) => row["底仓定投收益率"] * 100),
+          ...data.map((row) => row["一次性买入市值收益率"] * 100),
+          ...data.map((row) => row["普通定投市值收益率"] * 100),
+          ...data.map((row) => row["底仓定投市值收益率"] * 100),
+        ];
+
+        const allAmounts = [
+          ...data.map((row) => row["一次性买入累计投入"]),
+          ...data.map((row) => row["普通定投累计投入"]),
+          ...data.map((row) => row["底仓定投累计投入"]),
+          ...data.map((row) => row["一次性买入累计收益"]),
+          ...data.map((row) => row["普通定投累计收益"]),
+          ...data.map((row) => row["底仓定投累计收益"]),
+        ];
+
+        return {
+          returnYMin: Math.min(...allReturns) * 1.1,
+          returnYMax: Math.max(...allReturns) * 1.1,
+          amountYMin: Math.min(...allAmounts) * 1.1,
+          amountYMax: Math.max(...allAmounts) * 1.1,
+        };
+      }
+
+      // 数据源切换
+      document.querySelectorAll(".data-source-tab").forEach((tab) => {
+        tab.addEventListener("click", function () {
+          document.querySelectorAll(".data-source-tab").forEach((t) => t.classList.remove("active"));
+          document.querySelectorAll(".data-source-content").forEach((c) => c.classList.remove("active"));
+
+          this.classList.add("active");
+          document.getElementById(`${this.dataset.tab}-tab`).classList.add("active");
+          currentDataSource = this.dataset.tab;
+
+          rawData = null;
+          document.getElementById("analyzeBtn").disabled = true;
+
+          if (currentDataSource === "internal") {
+            document.getElementById("internalDataSelect").value = "";
+            document.getElementById("loadInternalDataBtn").disabled = true;
+          } else {
+            document.getElementById("fileInput").value = "";
+          }
+
+          log(`已切换到${currentDataSource === "internal" ? "内置数据" : "外部上传"}数据源`);
+        });
+      });
+
+      // 内置数据选择变化
+      document.getElementById("internalDataSelect").addEventListener("change", function () {
+        document.getElementById("loadInternalDataBtn").disabled = !this.value;
+      });
+
+      // 加载内置数据
+      document.getElementById("loadInternalDataBtn").addEventListener("click", function () {
+        const selectedData = document.getElementById("internalDataSelect").value;
+        if (!selectedData) return;
+
+        const dataName = document.getElementById("internalDataSelect").options[
+          document.getElementById("internalDataSelect").selectedIndex
+        ].text;
+        log(`开始加载内置数据：${dataName}`);
+
+        try {
+          let data = JSON.parse(JSON.stringify(internalData[selectedData]));
+
+          if (!data.length) {
+            throw new Error("内置数据无有效数据行");
+          }
+          if (!data[0].hasOwnProperty("日期") || !data[0].hasOwnProperty("收盘价")) {
+            throw new Error("内置数据缺少必需列：请确保包含「日期」和「收盘价」列");
+          }
+
+          rawData = data
+            .map((row, index) => {
+              try {
+                const 日期 = toValidDate(row["日期"]);
+                const closePriceStr = (row["收盘价"] || "").toString().trim();
+                const 收盘价 = parseFloat(closePriceStr);
+                
+                if (isNaN(收盘价) || 收盘价 <= 0) {
+                  throw new Error(`收盘价必须是正数（当前值：${closePriceStr}）`);
+                }
+
+                return { 日期, 收盘价 };
+              } catch (err) {
+                throw new Error(`第${index + 1}行数据错误：${err.message}`);
+              }
+            })
+            .filter((row) => row.日期 instanceof Date && !isNaN(row.日期.getTime()))
+            .sort((a, b) => a.日期 - b.日期);
+
+          if (rawData.length > 0) {
+            const earliestDate = rawData[0].日期.toLocaleDateString();
+            const latestDate = rawData[rawData.length - 1].日期.toLocaleDateString();
+            log(`内置数据加载成功！共${rawData.length}条有效记录`);
+            log(`数据时间范围：${earliestDate} 至 ${latestDate}`);
+            log(`前5行数据预览：${JSON.stringify(
+              rawData.slice(0, 5).map((row) => ({
+                日期: row.日期.toLocaleDateString(),
+                收盘价: row.收盘价.toFixed(2),
+              }))
+            )}`);
+          }
+
+          document.getElementById("analyzeBtn").disabled = false;
+        } catch (err) {
+          log(`❌ 内置数据加载失败：${err.message}`);
+          rawData = null;
+          document.getElementById("analyzeBtn").disabled = true;
+        }
+      });
+
+      // 文件上传处理
+      document.getElementById("uploadArea").addEventListener("click", () => {
+        document.getElementById("fileInput").click();
+      });
+
+      // 拖拽上传处理
+      const uploadArea = document.getElementById("uploadArea");
+      uploadArea.addEventListener("dragover", (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = "#007bff";
+        uploadArea.style.backgroundColor = "#f8f9fa";
+      });
+
+      uploadArea.addEventListener("dragleave", () => {
+        uploadArea.style.borderColor = "#ccc";
+        uploadArea.style.backgroundColor = "";
+      });
+
+      uploadArea.addEventListener("drop", (e) => {
+        e.preventDefault();
+        uploadArea.style.borderColor = "#ccc";
+        uploadArea.style.backgroundColor = "";
+        
+        if (e.dataTransfer.files && e.dataTransfer.files[0]) {
+          document.getElementById("fileInput").files = e.dataTransfer.files;
+          handleFileUpload(e.dataTransfer.files[0]);
+        }
+      });
+
+      // 文件选择处理
+      document.getElementById("fileInput").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          handleFileUpload(file);
+        }
+      });
+
+      // 处理文件上传
+      function handleFileUpload(file) {
+        log(`开始读取文件：${file.name}`);
+        const reader = new FileReader();
+
+        reader.onload = function (e) {
+          try {
+            const data = new Uint8Array(e.target.result);
+            let workbook;
+            let rows = [];
+
+            if (file.name.endsWith(".csv")) {
+              // 解析CSV
+              const csvStr = new TextDecoder("gbk", { fatal: false }).decode(data);
+              const lines = csvStr.split(/\r?\n/).filter((line) => line.trim());
+              if (lines.length === 0) throw new Error("CSV文件无有效数据");
+
+              const headers = lines[0].split(",").map((h) => h.trim());
+              rows = lines.slice(1).map((line) => {
+                const cells = line.split(",");
+                const row = {};
+                headers.forEach((h, i) => {
+                  row[h] = cells[i] ? cells[i].trim() : "";
+                });
+                return row;
+              });
+            } else {
+              // 解析Excel
+              workbook = XLSX.read(data, { type: "array" });
+              const sheetName = workbook.SheetNames[0];
+              const sheet = workbook.Sheets[sheetName];
+              rows = XLSX.utils.sheet_to_json(sheet);
+            }
+
+            if (!rows.length) {
+              throw new Error("文件无有效数据行");
+            }
+            if (!rows[0].hasOwnProperty("日期") || !rows[0].hasOwnProperty("收盘价")) {
+              throw new Error("文件缺少必需列：请确保包含「日期」和「收盘价」列");
+            }
+
+            rawData = rows
+              .map((row, index) => {
+                try {
+                  const 日期 = toValidDate(row["日期"]);
+                  const closePriceStr = (row["收盘价"] || "").toString().trim();
+                  const 收盘价 = parseFloat(closePriceStr);
+                  
+                  if (isNaN(收盘价) || 收盘价 <= 0) {
+                    throw new Error(`收盘价必须是正数（当前值：${closePriceStr}）`);
+                  }
+
+                  return { 日期, 收盘价 };
+                } catch (err) {
+                  throw new Error(`第${index + 1}行数据错误：${err.message}`);
+                }
+              })
+              .filter((row) => row.日期 instanceof Date && !isNaN(row.日期.getTime()))
+              .sort((a, b) => a.日期 - b.日期);
+
+            if (rawData.length > 0) {
+              const earliestDate = rawData[0].日期.toLocaleDateString();
+              const latestDate = rawData[rawData.length - 1].日期.toLocaleDateString();
+              log(`数据加载成功！共${rawData.length}条有效记录`);
+              log(`数据时间范围：${earliestDate} 至 ${latestDate}`);
+              log(`前5行数据预览：${JSON.stringify(
+                rawData.slice(0, 5).map((row) => ({
+                  日期: row.日期.toLocaleDateString(),
+                  收盘价: row.收盘价.toFixed(2),
+                }))
+              )}`);
+            }
+
+            document.getElementById("analyzeBtn").disabled = false;
+          } catch (err) {
+            log(`❌ 文件解析失败：${err.message}`);
+            rawData = null;
+            document.getElementById("analyzeBtn").disabled = true;
+          }
+        };
+
+        reader.readAsArrayBuffer(file);
+      }
+
+      // 策略计算核心函数
+      function runStrategy() {
+        log("开始运行策略计算...");
+
+        // 获取配置参数
+        const initialCapital = parseFloat(document.getElementById("initialCapital").value);
+        const startDateStr = document.getElementById("startDate").value;
+        const startDate = toValidDate(startDateStr);
+        const endDateStr = document.getElementById("endDate").value;
+        const endDate = toValidDate(endDateStr);
+        const investAmount = parseFloat(document.getElementById("investAmount").value);
+        const baseRatio = parseFloat(document.getElementById("baseRatio").value) / 100;
+        const feeRate = parseFloat(document.getElementById("feeRate").value) / 100;
+
+        // 参数校验
+        if (isNaN(initialCapital) || initialCapital < 1000) {
+          throw new Error(`初始本金无效：${initialCapital}（最小值1000元）`);
+        }
+        if (isNaN(investAmount) || investAmount < 100) {
+          throw new Error(`定投金额无效：${investAmount}（最小值100元）`);
+        }
+        if (isNaN(baseRatio) || baseRatio < 0 || baseRatio > 1) {
+          throw new Error(`底仓比例无效：${baseRatio * 100}%（范围0-100%）`);
+        }
+        if (isNaN(feeRate) || feeRate < 0 || feeRate > 1) {
+          throw new Error(`手续费率无效：${feeRate * 100}%（范围0-1%）`);
+        }
+        if (startDate >= endDate) {
+          throw new Error(`开始时间${startDate.toLocaleDateString()}不能晚于或等于停止时间${endDate.toLocaleDateString()}`);
+        }
+
+        // 输出时间范围信息
+        const userStartDate = startDate.toLocaleDateString();
+        const userEndDate = endDate.toLocaleDateString();
+        const dataEarliestDate = rawData[0].日期.toLocaleDateString();
+        const dataLatestDate = rawData[rawData.length - 1].日期.toLocaleDateString();
+        log(`用户设置的时间范围：${userStartDate} 至 ${userEndDate}`);
+        log(`数据覆盖的日期范围：${dataEarliestDate} 至 ${dataLatestDate}`);
+
+        // 校验时间范围
+        if (endDate < rawData[0].日期) {
+          throw new Error(`停止时间${userEndDate}早于数据最早日期${dataEarliestDate}，请修改停止时间`);
+        }
+        if (startDate > rawData[rawData.length - 1].日期) {
+          throw new Error(`开始时间${userStartDate}晚于数据最晚日期${dataLatestDate}，请修改开始时间`);
+        }
+
+        // 初始化结果数据
+        const data = JSON.parse(JSON.stringify(rawData));
+        const tradeLog = [];
+
+        // 初始化所有策略字段
+        data.forEach((row) => {
+          // 一次性买入策略
+          row["一次性买入总资产"] = initialCapital;
+          row["一次性买入市值"] = 0.0;
+          row["一次性买入收益率"] = 0.0;
+          row["一次性买入累计投入"] = 0.0;
+
+          // 普通定投策略
+          row["普通定投股票数量"] = 0.0;
+          row["普通定投现金"] = initialCapital;
+          row["普通定投总资产"] = initialCapital;
+          row["普通定投市值"] = 0.0;
+          row["普通定投收益率"] = 0.0;
+          row["普通定投累计投入"] = 0.0;
+          row["普通定投信号"] = null;
+
+          // 底仓定投策略
+          row["底仓定投底仓股票数量"] = 0.0;
+          row["底仓定投浮动仓股票数量"] = 0.0;
+          row["底仓定投现金"] = initialCapital;
+          row["底仓定投总资产"] = initialCapital;
+          row["底仓定投市值"] = 0.0;
+          row["底仓定投收益率"] = 0.0;
+          row["底仓定投累计投入"] = 0.0;
+          row["底仓定投信号"] = null;
+        });
+
+        // 查找开始索引
+        let buyOnceStartIdx = data.findIndex((row) => {
+          const rowDate = new Date(row.日期);
+          const targetDate = new Date(startDate);
+          return (
+            rowDate.getFullYear() > targetDate.getFullYear() ||
+            (rowDate.getFullYear() === targetDate.getFullYear() && rowDate.getMonth() > targetDate.getMonth()) ||
+            (rowDate.getFullYear() === targetDate.getFullYear() && rowDate.getMonth() === targetDate.getMonth() && rowDate.getDate() >= targetDate.getDate())
+          );
+        });
+
+        log(`调试：findIndex查找${userStartDate}结果索引：${buyOnceStartIdx}`);
+
+        // 容错处理
+        if (buyOnceStartIdx === -1) {
+          if (startDate < data[0].日期) {
+            buyOnceStartIdx = 0;
+            log(`⚠️ 开始日期${userStartDate}早于数据最早日期${dataEarliestDate}，自动使用数据最早日期作为开始点`);
+          } else if (startDate > data[data.length - 1].日期) {
+            throw new Error(`开始日期${userStartDate}晚于数据最晚日期${dataLatestDate}，请修改开始日期`);
+          } else {
+            for (let i = 0; i < data.length; i++) {
+              if (data[i].日期 > startDate) {
+                buyOnceStartIdx = i;
+                log(`⚠️ 数据中无${userStartDate}的记录，自动使用最近的${data[i].日期.toLocaleDateString()}作为开始点`);
+                break;
+              }
+            }
+            if (buyOnceStartIdx === -1) {
+              buyOnceStartIdx = data.length - 1;
+              log(`⚠️ 未找到匹配日期，使用数据最后一条记录${dataLatestDate}作为开始点`);
+            }
+          }
+        }
+
+        // 查找停止索引
+        let endIdx = data.findIndex((row) => {
+          const rowDate = new Date(row.日期);
+          const targetDate = new Date(endDate);
+          return (
+            rowDate.getFullYear() > targetDate.getFullYear() ||
+            (rowDate.getFullYear() === targetDate.getFullYear() && rowDate.getMonth() > targetDate.getMonth()) ||
+            (rowDate.getFullYear() === targetDate.getFullYear() && rowDate.getMonth() === targetDate.getMonth() && rowDate.getDate() > targetDate.getDate())
+          );
+        });
+
+        if (endIdx === -1) {
+          endIdx = data.length - 1;
+          log(`⚠️ 数据中无${userEndDate}的记录，自动使用数据最后一条记录${dataLatestDate}作为停止点`);
+        } else {
+          endIdx = Math.max(endIdx - 1, buyOnceStartIdx);
+        }
+
+        log(`调试：策略计算范围索引：${buyOnceStartIdx} 至 ${endIdx}`);
+
+        const regularInvestStartIdx = buyOnceStartIdx;
+        const baseInvestStartIdx = buyOnceStartIdx;
+
+        // 一次性买入策略 - 修复：遍历所有数据行，而非仅到endIdx
+        if (buyOnceStartIdx >= 0) {
+          const startPrice = data[buyOnceStartIdx].收盘价;
+          const buyableShares = (initialCapital * (1 - feeRate)) / startPrice;
+
+          // 🔥 关键修改1：遍历所有数据行，确保停止时间后收益率仍更新
+          for (let i = 0; i < data.length; i++) {
+            if (i >= buyOnceStartIdx) {
+              data[i]["一次性买入市值"] = buyableShares * data[i].收盘价;
+              data[i]["一次性买入总资产"] = data[i]["一次性买入市值"];
+              data[i]["一次性买入收益率"] = (data[i]["一次性买入总资产"] - initialCapital) / initialCapital;
+              data[i]["一次性买入累计投入"] = initialCapital;
+            } else {
+              // 买入前的数据保持初始值
+              data[i]["一次性买入市值"] = 0;
+              data[i]["一次性买入总资产"] = initialCapital;
+              data[i]["一次性买入收益率"] = 0;
+              data[i]["一次性买入累计投入"] = 0;
+            }
+          }
+          log(`✅ 一次性买入策略：${buyableShares.toFixed(2)}股，买入价${startPrice.toFixed(2)}元`);
+        } else {
+          throw new Error(`开始日期${startDate.toLocaleDateString()}超出数据时间范围`);
+        }
+
+        // 普通定投策略
+        const regularInvestWeeks = new Set();
+        let prevRegularCash = initialCapital;
+        let prevRegularShares = 0.0;
+        let prevRegularInvested = 0.0;
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i];
+          if (i >= regularInvestStartIdx && i <= endIdx) {
+            const currentWeek = getISOWeek(row.日期);
+            const startRow = data[regularInvestStartIdx];
+            const startWeek = getISOWeek(startRow.日期);
+            const weekDiff = currentWeek - startWeek;
+            const isInvestDay = weekDiff >= 0 && weekDiff % 1 === 0 && !regularInvestWeeks.has(currentWeek);
+
+            if (isInvestDay && prevRegularCash >= investAmount) {
+              const buyableAmount = investAmount * (1 - feeRate);
+              const buyableShares = buyableAmount / row.收盘价;
+
+              prevRegularShares += buyableShares;
+              prevRegularCash -= investAmount;
+              prevRegularInvested += investAmount;
+
+              row["普通定投股票数量"] = prevRegularShares;
+              row["普通定投现金"] = prevRegularCash;
+              row["普通定投累计投入"] = prevRegularInvested;
+              row["普通定投信号"] = "定投买入";
+
+              regularInvestWeeks.add(currentWeek);
+              tradeLog.push({
+                日期: toValidDate(row.日期),
+                类型: "普通定投买入",
+                价格: row.收盘价,
+                数量: buyableShares,
+              });
+            } else {
+              row["普通定投股票数量"] = prevRegularShares;
+              row["普通定投现金"] = prevRegularCash;
+              row["普通定投累计投入"] = prevRegularInvested;
+            }
+
+            row["普通定投市值"] = prevRegularShares * row.收盘价;
+            row["普通定投总资产"] = row["普通定投市值"] + prevRegularCash;
+            row["普通定投收益率"] = (row["普通定投总资产"] - initialCapital) / initialCapital;
+          } else if (i > endIdx) {
+            // 停止定投后，仅更新市值和收益率，不进行新的定投
+            row["普通定投股票数量"] = prevRegularShares;
+            row["普通定投现金"] = prevRegularCash;
+            row["普通定投累计投入"] = prevRegularInvested;
+            row["普通定投市值"] = prevRegularShares * row.收盘价;
+            row["普通定投总资产"] = row["普通定投市值"] + prevRegularCash;
+            row["普通定投收益率"] = (row["普通定投总资产"] - initialCapital) / initialCapital;
+          } else {
+            // 定投开始前
+            row["普通定投股票数量"] = 0;
+            row["普通定投现金"] = initialCapital;
+            row["普通定投累计投入"] = 0;
+            row["普通定投市值"] = 0;
+            row["普通定投总资产"] = initialCapital;
+            row["普通定投收益率"] = 0;
+          }
+        }
+        log(`✅ 普通定投策略：共定投${regularInvestWeeks.size}次，累计投入${prevRegularInvested.toFixed(2)}元`);
+
+        // 底仓定投策略
+        const baseInvestWeeks = new Set();
+        let baseEstablished = false;
+        let prevBaseCash = initialCapital;
+        let prevBaseShares = 0.0;
+        let prevFloatShares = 0.0;
+        let prevBaseInvested = 0.0;
+
+        for (let i = 0; i < data.length; i++) {
+          const row = data[i];
+          if (i >= baseInvestStartIdx && i <= endIdx) {
+            // 底仓建仓
+            if (!baseEstablished && i === baseInvestStartIdx) {
+              const baseAmount = initialCapital * baseRatio;
+              const buyableAmount = baseAmount * (1 - feeRate);
+              const buyableShares = buyableAmount / row.收盘价;
+
+              prevBaseShares = buyableShares;
+              prevBaseCash -= baseAmount;
+              prevBaseInvested += baseAmount;
+
+              row["底仓定投底仓股票数量"] = prevBaseShares;
+              row["底仓定投现金"] = prevBaseCash;
+              row["底仓定投累计投入"] = prevBaseInvested;
+
+              baseEstablished = true;
+              tradeLog.push({
+                日期: toValidDate(row.日期),
+                类型: "底仓建仓买入",
+                价格: row.收盘价,
+                数量: buyableShares,
+              });
+              log(`✅ 底仓建仓：${buyableShares.toFixed(2)}股，买入价${row.收盘价.toFixed(2)}元`);
+            } else {
+              row["底仓定投底仓股票数量"] = prevBaseShares;
+              row["底仓定投现金"] = prevBaseCash;
+              row["底仓定投累计投入"] = prevBaseInvested;
+            }
+
+            // 浮动仓定投
+            if (baseEstablished) {
+              const currentWeek = getISOWeek(row.日期);
+              const startRow = data[baseInvestStartIdx];
+              const startWeek = getISOWeek(startRow.日期);
+              const weekDiff = currentWeek - startWeek;
+              const isInvestDay = weekDiff >= 0 && weekDiff % 1 === 0 && !baseInvestWeeks.has(currentWeek);
+
+              if (isInvestDay && prevBaseCash >= investAmount) {
+                const buyableAmount = investAmount * (1 - feeRate);
+                const buyableShares = buyableAmount / row.收盘价;
+
+                prevFloatShares += buyableShares;
+                prevBaseCash -= investAmount;
+                prevBaseInvested += investAmount;
+
+                row["底仓定投浮动仓股票数量"] = prevFloatShares;
+                row["底仓定投现金"] = prevBaseCash;
+                row["底仓定投累计投入"] = prevBaseInvested;
+                row["底仓定投信号"] = "定投买入";
+
+                baseInvestWeeks.add(currentWeek);
+                tradeLog.push({
+                  日期: toValidDate(row.日期),
+                  类型: "底仓定投买入",
+                  价格: row.收盘价,
+                  数量: buyableShares,
+                });
+              } else {
+                row["底仓定投浮动仓股票数量"] = prevFloatShares;
+              }
+            }
+
+            // 更新市值和收益率
+            const baseMarketValue = prevBaseShares * row.收盘价;
+            const floatMarketValue = prevFloatShares * row.收盘价;
+            row["底仓定投市值"] = baseMarketValue + floatMarketValue;
+            row["底仓定投总资产"] = row["底仓定投市值"] + prevBaseCash;
+            row["底仓定投收益率"] = (row["底仓定投总资产"] - initialCapital) / initialCapital;
+          } else if (i > endIdx) {
+            // 停止定投后，仅更新市值和收益率，不进行新的定投
+            row["底仓定投底仓股票数量"] = prevBaseShares;
+            row["底仓定投浮动仓股票数量"] = prevFloatShares;
+            row["底仓定投现金"] = prevBaseCash;
+            row["底仓定投累计投入"] = prevBaseInvested;
+            
+            const baseMarketValue = prevBaseShares * row.收盘价;
+            const floatMarketValue = prevFloatShares * row.收盘价;
+            row["底仓定投市值"] = baseMarketValue + floatMarketValue;
+            row["底仓定投总资产"] = row["底仓定投市值"] + prevBaseCash;
+            row["底仓定投收益率"] = (row["底仓定投总资产"] - initialCapital) / initialCapital;
+          } else {
+            // 定投开始前
+            row["底仓定投底仓股票数量"] = 0;
+            row["底仓定投浮动仓股票数量"] = 0;
+            row["底仓定投现金"] = initialCapital;
+            row["底仓定投累计投入"] = 0;
+            row["底仓定投市值"] = 0;
+            row["底仓定投总资产"] = initialCapital;
+            row["底仓定投收益率"] = 0;
+          }
+        }
+        log(`✅ 底仓定投策略：底仓${baseRatio * 100}% + 定投${baseInvestWeeks.size}次，累计投入${prevBaseInvested.toFixed(2)}元`);
+
+        // 计算市值收益率和累计收益
+        data.forEach((row) => {
+          row["一次性买入市值收益率"] = row["一次性买入市值"] > 0 
+            ? (row["一次性买入市值"] - initialCapital) / initialCapital 
+            : 0;
+
+          row["普通定投市值收益率"] = row["普通定投累计投入"] > 0 
+            ? (row["普通定投市值"] - row["普通定投累计投入"]) / row["普通定投累计投入"] 
+            : 0;
+
+          row["底仓定投市值收益率"] = row["底仓定投累计投入"] > 0 
+            ? (row["底仓定投市值"] - row["底仓定投累计投入"]) / row["底仓定投累计投入"] 
+            : 0;
+
+          row["一次性买入累计收益"] = row["一次性买入总资产"] - initialCapital;
+          row["普通定投累计收益"] = row["普通定投总资产"] - initialCapital;
+          row["底仓定投累计收益"] = row["底仓定投总资产"] - initialCapital;
+        });
+
+        log(`✅ 策略计算完成！共生成${tradeLog.length}笔交易记录`);
+        log(`📝 最近10笔交易：${JSON.stringify(
+          tradeLog.slice(-10).map((t) => {
+            const validDate = toValidDate(t.日期);
+            return {
+              日期: validDate.toLocaleDateString(),
+              类型: t.类型,
+              价格: t.价格.toFixed(2),
+              数量: t.数量.toFixed(2),
+            };
+          }),
+          null,
+          2
+        )}`);
+
+        return { data, tradeLog };
+      }
+
+      // 绘制收益率图表
+      function drawReturnChart(data, yRanges) {
+        log("开始生成收益率对比图表...");
+        const chartArea1 = document.getElementById("chartArea1");
+        chartArea1.classList.remove("hidden");
+
+        // 准备图表数据
+        const dates = data.map((row) => row.日期);
+        const buyOnceReturn = data.map((row) => row["一次性买入收益率"] * 100);
+        const regularReturn = data.map((row) => row["普通定投收益率"] * 100);
+        const baseReturn = data.map((row) => row["底仓定投收益率"] * 100);
+
+        const buyOnceMarketReturn = data.map((row) => row["一次性买入市值收益率"] * 100);
+        const regularMarketReturn = data.map((row) => row["普通定投市值收益率"] * 100);
+        const baseMarketReturn = data.map((row) => row["底仓定投市值收益率"] * 100);
+
+        // 提取定投买入点
+        const regularInvestPoints = data
+          .filter((row) => row["普通定投信号"] === "定投买入")
+          .map((row) => ({ x: row.日期, y: row["普通定投收益率"] * 100 }));
+
+        const baseInvestPoints = data
+          .filter((row) => row["底仓定投信号"] === "定投买入")
+          .map((row) => ({ x: row.日期, y: row["底仓定投收益率"] * 100 }));
+
+        // 定义图表轨迹
+        const traces = [
+          // 左Y轴 - 总收益率
+          {
+            x: dates,
+            y: buyOnceReturn,
+            name: "一次性买入（总收益率%）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#ff7f0e", width: 2 },
+            yaxis: "y1",
+          },
+          {
+            x: dates,
+            y: regularReturn,
+            name: "普通定投（总收益率%）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#2ca02c", width: 2 },
+            yaxis: "y1",
+          },
+          {
+            x: dates,
+            y: baseReturn,
+            name: "50%底仓+定投（总收益率%）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#1f77b4", width: 2 },
+            yaxis: "y1",
+          },
+          // 定投买入点标记
+          {
+            x: regularInvestPoints.map((p) => p.x),
+            y: regularInvestPoints.map((p) => p.y),
+            name: "普通定投买入点",
+            type: "scatter",
+            mode: "markers",
+            marker: { color: "#17becf", size: 8, symbol: "circle" },
+            yaxis: "y1",
+          },
+          {
+            x: baseInvestPoints.map((p) => p.x),
+            y: baseInvestPoints.map((p) => p.y),
+            name: "底仓定投买入点",
+            type: "scatter",
+            mode: "markers",
+            marker: { color: "#9467bd", size: 8, symbol: "diamond" },
+            yaxis: "y1",
+          },
+          // 右Y轴 - 持有收益率
+          {
+            x: dates,
+            y: buyOnceMarketReturn,
+            name: "一次性买入（持有收益率%）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#ff7f0e", width: 2, dash: "dash" },
+            yaxis: "y2",
+          },
+          {
+            x: dates,
+            y: regularMarketReturn,
+            name: "普通定投（持有收益率%）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#2ca02c", width: 2, dash: "dash" },
+            yaxis: "y2",
+          },
+          {
+            x: dates,
+            y: baseMarketReturn,
+            name: "50%底仓+定投（持有收益率%）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#1f77b4", width: 2, dash: "dash" },
+            yaxis: "y2",
+          },
+        ];
+
+        // 图表布局 - 🔥 关键修改2：添加响应式配置
+        const layout = {
+          title: "股票定投收益率对比",
+          autosize: true, // 自动调整尺寸
+          height: 600, // 基础高度，autosize会根据容器调整
+          xaxis: {
+            title: "日期",
+            type: "date",
+            tickformat: "%Y-%m-%d",
+            tickangle: -45,
+            automargin: true, // 自动调整边距，防止标签被截断
+          },
+          yaxis: {
+            title: "总收益率 (%)",
+            range: [yRanges.returnYMin, yRanges.returnYMax],
+            side: "left",
+            titlefont: { color: "#333" },
+            tickfont: { color: "#333" },
+            automargin: true,
+          },
+          yaxis2: {
+            title: "持有收益率 (%)",
+            range: [yRanges.returnYMin, yRanges.returnYMax],
+            side: "right",
+            overlaying: "y",
+            titlefont: { color: "#888" },
+            tickfont: { color: "#888" },
+            automargin: true,
+          },
+          legend: {
+            x: 0,
+            y: 1,
+            bgcolor: "rgba(255,255,255,0.8)",
+            orientation: "h", // 水平排列图例，节省垂直空间
+            xanchor: "left",
+            yanchor: "top",
+          },
+          hovermode: "x unified",
+          margin: { l: 80, r: 80, t: 60, b: 80 }, // 增加边距，防止内容被截断
+          responsive: true, // 启用响应式
+        };
+
+        // 绘制图表
+        Plotly.newPlot("chartArea1", traces, layout);
+      }
+
+      // 绘制金额对比图表
+      function drawAmountChart(data, yRanges) {
+        log("开始生成金额对比图表...");
+        const chartArea2 = document.getElementById("chartArea2");
+        chartArea2.classList.remove("hidden");
+
+        // 准备图表数据
+        const dates = data.map((row) => row.日期);
+        const buyOnceInvest = data.map((row) => row["一次性买入累计投入"]);
+        const regularInvest = data.map((row) => row["普通定投累计投入"]);
+        const baseInvest = data.map((row) => row["底仓定投累计投入"]);
+
+        const buyOnceProfit = data.map((row) => row["一次性买入累计收益"]);
+        const regularProfit = data.map((row) => row["普通定投累计收益"]);
+        const baseProfit = data.map((row) => row["底仓定投累计收益"]);
+
+        // 定义图表轨迹
+        const traces = [
+          // 累计投入
+          {
+            x: dates,
+            y: buyOnceInvest,
+            name: "一次性买入（累计投入）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#ff7f0e", width: 2 },
+            yaxis: "y1",
+          },
+          {
+            x: dates,
+            y: regularInvest,
+            name: "普通定投（累计投入）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#2ca02c", width: 2 },
+            yaxis: "y1",
+          },
+          {
+            x: dates,
+            y: baseInvest,
+            name: "50%底仓+定投（累计投入）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#1f77b4", width: 2 },
+            yaxis: "y1",
+          },
+          // 累计收益
+          {
+            x: dates,
+            y: buyOnceProfit,
+            name: "一次性买入（累计收益）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#ff7f0e", width: 2, dash: "dash" },
+            yaxis: "y2",
+          },
+          {
+            x: dates,
+            y: regularProfit,
+            name: "普通定投（累计收益）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#2ca02c", width: 2, dash: "dash" },
+            yaxis: "y2",
+          },
+          {
+            x: dates,
+            y: baseProfit,
+            name: "50%底仓+定投（累计收益）",
+            type: "scatter",
+            mode: "lines",
+            line: { color: "#1f77b4", width: 2, dash: "dash" },
+            yaxis: "y2",
+          },
+        ];
+
+        // 图表布局 - 🔥 关键修改3：添加响应式配置
+        const layout = {
+          title: "股票定投金额对比",
+          autosize: true,
+          height: 600,
+          xaxis: {
+            title: "日期",
+            type: "date",
+            tickformat: "%Y-%m-%d",
+            tickangle: -45,
+            automargin: true,
+          },
+          yaxis: {
+            title: "累计投入 (元)",
+            range: [yRanges.amountYMin, yRanges.amountYMax],
+            side: "left",
+            titlefont: { color: "#333" },
+            tickfont: { color: "#333" },
+            automargin: true,
+          },
+          yaxis2: {
+            title: "累计收益 (元)",
+            range: [yRanges.amountYMin, yRanges.amountYMax],
+            side: "right",
+            overlaying: "y",
+            titlefont: { color: "#888" },
+            tickfont: { color: "#888" },
+            automargin: true,
+          },
+          legend: {
+            x: 0,
+            y: 1,
+            bgcolor: "rgba(255,255,255,0.8)",
+            orientation: "h",
+            xanchor: "left",
+            yanchor: "top",
+          },
+          hovermode: "x unified",
+          margin: { l: 80, r: 80, t: 60, b: 80 },
+          responsive: true,
+        };
+
+        // 绘制图表
+        Plotly.newPlot("chartArea2", traces, layout);
+      }
+
+      // 绑定开始分析按钮事件
+      document.getElementById("analyzeBtn").addEventListener("click", async function () {
+        if (!rawData) {
+          log("❌ 请先加载数据！");
+          return;
+        }
+
+        try {
+          // 清空之前的图表
+          Plotly.purge("chartArea1");
+          Plotly.purge("chartArea2");
+          document.getElementById("chartArea1").classList.add("hidden");
+          document.getElementById("chartArea2").classList.add("hidden");
+
+          // 运行策略计算
+          const result = runStrategy();
+          resultData = result.data;
+
+          // 计算Y轴范围
+          const yRanges = calculateYAxisRanges(resultData);
+
+          // 绘制图表
+          drawReturnChart(resultData, yRanges);
+          drawAmountChart(resultData, yRanges);
+
+          // 输出最终结果
+          const finalRow = resultData[resultData.length - 1];
+          log("\n📊 策略分析最终结果：");
+          log(`   一次性买入总收益率：${(finalRow["一次性买入收益率"] * 100).toFixed(2)}%`);
+          log(`   普通定投总收益率：${(finalRow["普通定投收益率"] * 100).toFixed(2)}%`);
+          log(`   底仓定投总收益率：${(finalRow["底仓定投收益率"] * 100).toFixed(2)}%`);
+          log(`   一次性买入累计收益：${finalRow["一次性买入累计收益"].toFixed(2)}元`);
+          log(`   普通定投累计收益：${finalRow["普通定投累计收益"].toFixed(2)}元`);
+          log(`   底仓定投累计收益：${finalRow["底仓定投累计收益"].toFixed(2)}元`);
+          log("\n✅ 所有分析完成！");
+        } catch (err) {
+          log(`❌ 分析失败：${err.message}`);
+          console.error(err);
+        }
+      });
+
+      // 🔥 关键修改4：窗口大小变化时重新绘制图表，确保自适应
+      window.addEventListener("resize", function() {
+        if (resultData) {
+          const yRanges = calculateYAxisRanges(resultData);
+          Plotly.relayout("chartArea1", { autosize: true });
+          Plotly.relayout("chartArea2", { autosize: true });
+        }
+      });
+    </script>
+  </body>
+</html>
