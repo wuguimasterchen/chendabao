@@ -1,0 +1,1341 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>荔枝投研-股票定投助手</title>
+  <style>
+    /* 全局样式重置与基础设置 */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      font-family: "Microsoft YaHei", "PingFang SC", "SF Pro Display", Arial, sans-serif;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); /* 丝滑过渡 */
+    }
+
+    /* 平滑滚动 */
+    html {
+      scroll-behavior: smooth;
+      /* 新增：为固定窗格预留顶部空间 */
+      padding-top: 60px;
+    }
+
+    /* 自定义滚动条 */
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(52, 152, 219, 0.05);
+      border-radius: 8px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: linear-gradient(135deg, #3498db, #2980b9);
+      border-radius: 8px;
+      border: 2px solid transparent;
+      background-clip: content-box;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: linear-gradient(135deg, #2980b9, #1f618d);
+      background-clip: content-box;
+    }
+
+    /* 背景渐变 */
+    body {
+      background: linear-gradient(135deg, #f0f4f8 0%, #e8f0fe 100%);
+      color: #333;
+      line-height: 1.6;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto; /* 调整margin，避免和固定窗格重叠 */
+      padding: 20px 20px 40px;
+    }
+
+    /* 标题渐变文字特效 */
+    h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      position: relative;
+      background: linear-gradient(135deg, #3498db, #9b59b6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    h1::after {
+      content: "";
+      position: absolute;
+      bottom: 0;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 150px;
+      height: 4px;
+      background: linear-gradient(90deg, #3498db, #9b59b6);
+      border-radius: 2px;
+    }
+
+    /* 新增：Logo样式 */
+    .logo-img {
+      width: 200px;
+      height: 200px;
+      vertical-align: middle;
+      margin-right: 10px;
+      border-radius: 8px; /* 轻微圆角，提升美观度 */
+    }
+
+    h3 {
+      color: #2c3e50;
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 30px 0 20px;
+      display: flex;
+      align-items: center;
+      position: relative;
+      padding-left: 10px;
+    }
+
+    h3::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 24px;
+      background: linear-gradient(180deg, #3498db, #9b59b6);
+      margin-right: 10px;
+      border-radius: 3px;
+      box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+    }
+
+    h4 {
+      color: #34495e;
+      font-size: 1.3rem;
+      font-weight: 600;
+      margin-bottom: 20px;
+      position: relative;
+    }
+
+    /* 策略说明玻璃拟态提示框 */
+    .strategy-tip {
+      color: #27ae60;
+      font-weight: 500;
+      margin: 40px 0 30px;
+      padding: 15px 25px;
+      background: rgba(255, 255, 255, 0.8);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-left: 4px solid #27ae60;
+      border-radius: 10px;
+      font-size: 1rem;
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+    }
+
+    /* 炫酷按钮样式 */
+    .btn {
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+      color: white;
+      border: none;
+      padding: 14px 30px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 15px 0;
+      font-weight: 600;
+      box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+      position: relative;
+      overflow: hidden;
+      /* 修改：移除max-width，让按钮宽度自适应容器 */
+      width: 100%;
+    }
+
+    .btn::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+      transition: all 0.6s ease;
+    }
+
+    .btn:hover {
+      background: linear-gradient(135deg, #2980b9 0%, #1f618d 100%);
+      box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+      transform: translateY(-2px);
+    }
+
+    .btn:hover::before {
+      left: 100%;
+    }
+
+    .btn:disabled {
+      background: linear-gradient(135deg, #bdc3c7 0%, #95a5a6 100%);
+      cursor: not-allowed;
+      box-shadow: none;
+      transform: none;
+    }
+
+    .btn:disabled::before {
+      display: none;
+    }
+
+    /* 加载动画 */
+    .loading-spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(255, 255, 255, 0.3);
+      border-radius: 50%;
+      border-top-color: white;
+      animation: spin 1s ease-in-out infinite;
+      margin-right: 10px;
+      vertical-align: middle;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* 日志区域 - 隐藏（不再前端显示） */
+    .log-area {
+      display: none !important; /* 强制隐藏日志区域 */
+      height: 220px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      padding: 20px;
+      margin: 25px 0;
+      overflow-y: auto;
+      font-size: 14px;
+      line-height: 1.7;
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(8px);
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+      font-family: "Consolas", "Monaco", "Fira Code", monospace;
+      position: relative;
+    }
+
+    /* 图表区域 - 炫酷卡片 */
+    .chart-area {
+      margin: 35px 0;
+      height: 600px;
+      width: 100%;
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 20px;
+      box-shadow: 0 10px 40px rgba(31, 38, 135, 0.15);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .chart-area::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 4px;
+      background: linear-gradient(90deg, #3498db, #9b59b6, #3498db);
+      background-size: 200% 100%;
+      animation: gradientMove 5s ease infinite;
+    }
+
+    @keyframes gradientMove {
+      0% { background-position: 0% 50%; }
+      50% { background-position: 100% 50%; }
+      100% { background-position: 0% 50%; }
+    }
+
+    /* 合并后的配置主容器 */
+    .main-config-area {
+      margin: 30px 0;
+      padding: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 15px;
+      background: rgba(255, 255, 255, 0.7);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.1);
+    }
+
+    /* 配置分区样式 */
+    .config-section {
+      margin-bottom: 30px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(222, 226, 230, 0.5);
+    }
+
+    .config-section:last-child {
+      margin-bottom: 0;
+      padding-bottom: 0;
+      border-bottom: none;
+    }
+
+    /* Flex布局容器（实现并排） */
+    .strategy-flex-container {
+      display: flex;
+      flex-wrap: wrap; /* 自动换行（适配小屏） */
+      gap: 30px; /* 增加间距，提升视觉效果 */
+      align-items: flex-start; /* 顶部对齐 */
+      position: relative;
+    }
+
+    /* 基础策略参数容器（左侧） */
+    .strategy-basic-container {
+      flex: 1; /* 等宽分配 */
+      min-width: 300px; /* 最小宽度，防止缩得太窄 */
+    }
+
+    /* 动态估值止盈参数容器（右侧）- 修改后样式 */
+    .strategy-valuation-container {
+      flex: 1; /* 等宽分配 */
+      min-width: 300px; /* 和左侧保持一致的最小宽度 */
+      padding: 0; /* 移除内边距，和左侧保持一致 */
+      border: 1px solid rgba(220, 220, 220, 0.8); /* 灰色边框保留 */
+      border-radius: 12px;
+      background: rgba(245, 245, 245, 0.9); /* 浅灰色背景保留 */
+      backdrop-filter: blur(8px);
+      box-shadow: 0 4px 20px rgba(31, 38, 135, 0.08);
+      /* 关键修改：移除导致偏移的属性 */
+      margin-left: 0 !important;
+      transform: none !important;
+      /* 增加内边距，保持内部布局 */
+      padding: 20px;
+    }
+
+    /* 配置项 - 优化防止转行 */
+    .config-item {
+      margin: 20px 0;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      white-space: nowrap; /* 防止整行转行 */
+    }
+
+    .config-item label {
+      width: 180px;
+      text-align: right;
+      font-weight: 500;
+      color: #2c3e50;
+      font-size: 15px;
+      white-space: nowrap; /* 标签不转行 */
+    }
+
+    /* 炫酷输入框 - 统一所有输入框样式（包括时间选择框） */
+    .config-item input,
+    .stock-info-item input,
+    .autocomplete input {
+      padding: 12px 15px;
+      border: 2px solid #e9ecef;
+      border-radius: 8px;
+      width: 200px;
+      min-width: 180px; /* 最小宽度，防止转行 */
+      font-size: 14px;
+      background: rgba(255, 255, 255, 0.9);
+      transition: all 0.3s ease;
+      white-space: nowrap; /* 输入框内容不转行 */
+      /* 统一时间选择框的高度和样式 */
+      height: 46px;
+      line-height: 1;
+    }
+
+    /* 所有输入框的focus效果统一 */
+    .config-item input:focus,
+    .stock-info-item input:focus,
+    .autocomplete input:focus {
+      outline: none;
+      border-color: #3498db;
+      box-shadow: 0 0 0 4px rgba(52, 152, 219, 0.15), 0 4px 10px rgba(52, 152, 219, 0.1);
+      transform: translateY(-1px);
+    }
+
+    /* 自动补全样式升级 - 统一风格 */
+    .autocomplete {
+      position: relative;
+      display: inline-block;
+      width: 200px;
+      min-width: 180px; /* 最小宽度，和输入框统一 */
+    }
+
+    .autocomplete-items {
+      position: absolute;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+      border-bottom: none;
+      border-top: none;
+      z-index: 999;
+      top: 100%;
+      left: 0;
+      right: 0;
+      border-radius: 0 0 10px 10px;
+      box-shadow: 0 10px 30px rgba(31, 38, 135, 0.15);
+      overflow: hidden;
+    }
+
+    .autocomplete-items div {
+      padding: 14px 18px;
+      cursor: pointer;
+      background-color: rgba(255, 255, 255, 0.95);
+      border-bottom: 1px solid #e9ecef;
+      font-size: 14px;
+    }
+
+    .autocomplete-items div:hover {
+      background-color: #f1f8fe;
+      transform: translateX(3px);
+    }
+
+    .autocomplete-active {
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%) !important;
+      color: #ffffff;
+    }
+
+    /* 结果汇总 - 田字格布局 */
+    .result-summary {
+      margin: 30px 0;
+      padding: 30px;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      border-radius: 15px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(240, 248, 255, 0.9) 100%);
+      backdrop-filter: blur(10px);
+      box-shadow: 0 10px 40px rgba(31, 38, 135, 0.15);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .result-summary::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 200px;
+      height: 200px;
+      background: radial-gradient(circle, rgba(52, 152, 219, 0.1) 0%, transparent 70%);
+      border-radius: 50%;
+      transform: translate(50%, -50%);
+      z-index: 0;
+    }
+
+    .result-summary h4 {
+      margin-bottom: 25px;
+      color: #2c3e50;
+      font-size: 1.4rem;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 田字格容器 */
+    .result-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 20px;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* 田字格项目 */
+    .result-card {
+      padding: 25px;
+      background: rgba(255, 255, 255, 0.9);
+      border-radius: 12px;
+      box-shadow: 0 6px 16px rgba(31, 38, 135, 0.1);
+      transition: all 0.3s ease;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+
+    .result-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 25px rgba(31, 38, 135, 0.15);
+    }
+
+    .result-card .strategy-name {
+      font-weight: 700;
+      background: linear-gradient(135deg, #3498db, #9b59b6);
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+      margin-bottom: 15px;
+      font-size: 1.2rem;
+      border-bottom: 1px solid rgba(222, 226, 230, 0.5);
+      padding-bottom: 10px;
+    }
+
+    .result-card .result-metric {
+      margin: 10px 0;
+      color: #495057;
+      font-size: 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .result-card .result-metric .value {
+      font-weight: 600;
+      color: #2c3e50;
+      font-size: 16px;
+    }
+
+    /* 隐藏类 */
+    .hidden {
+      display: none;
+    }
+
+    /* 数据标签页样式（炫酷版） */
+    .data-source-tabs {
+      display: flex;
+      margin-bottom: 25px;
+      gap: 15px;
+    }
+
+    .data-source-tab {
+      padding: 12px 25px;
+      background: rgba(255, 255, 255, 0.7);
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      border: 1px solid rgba(255, 255, 255, 0.8);
+      box-shadow: 0 4px 10px rgba(31, 38, 135, 0.08);
+    }
+
+    .data-source-tab.active {
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+      color: #fff;
+      box-shadow: 0 6px 15px rgba(52, 152, 219, 0.2);
+    }
+
+    /* 登录弹窗样式（直接隐藏，不再使用） */
+    .login-modal {
+      display: none !important;
+    }
+
+    /* 登录状态提示（简化为纯游客模式） */
+    .login-status {
+      text-align: right;
+      margin-bottom: 10px;
+      color: #2c3e50;
+      font-size: 14px;
+    }
+
+    /* 积分样式（游客模式隐藏） */
+    .user-points {
+      display: none;
+      color: #e67e22;
+      font-weight: 600;
+      margin-left: 10px;
+    }
+
+    /* ========== 新增：股票信息横向排列样式 ========== */
+    .stock-info-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+
+    .stock-info-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex: 1;
+      min-width: 220px; /* 增大最小宽度，优化布局 */
+    }
+
+    .stock-info-item label {
+      white-space: nowrap;
+      font-weight: 500;
+      color: #2c3e50;
+      font-size: 15px;
+      width: 90px; /* 固定标签宽度，对齐更美观 */
+    }
+
+    .stock-info-item .autocomplete,
+    .stock-info-item input {
+      width: 100%;
+      flex: 1; /* 占满剩余空间 */
+    }
+
+    /* ========== 核心修改：股票名称显示区域改为冻结窗格 ========== */
+    .stock-name-display {
+      /* 冻结窗格核心样式 */
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 9999; /* 确保在最顶层 */
+      /* 原有样式保留并优化 */
+      margin: 0;
+      padding: 12px 20px;
+      background: linear-gradient(135deg, rgba(52, 152, 219, 0.1) 0%, rgba(155, 89, 182, 0.1) 100%);
+      border-radius: 0; /* 取消圆角，适配全屏 */
+      border-left: 4px solid #3498db;
+      border-bottom: 1px solid rgba(222, 226, 230, 0.5); /* 增加底部边框 */
+      display: none; /* 默认隐藏 */
+      /* 增加背景色，提升可读性 */
+      background-color: rgba(255, 255, 255, 0.95);
+      backdrop-filter: blur(8px);
+    }
+
+    .stock-name-display.show {
+      display: block;
+    }
+
+    .stock-name-display .label {
+      font-weight: 600;
+      color: #2c3e50;
+      margin-right: 10px;
+    }
+
+    .stock-name-display .value {
+      font-weight: 500;
+      color: #3498db;
+      font-size: 16px;
+    }
+
+    /* ========== 响应式适配调整 ========== */
+    @media (max-width: 768px) {
+      html {
+        padding-top: 70px; /* 移动端调整顶部预留空间 */
+      }
+      .chart-area {
+        height: 400px;
+        padding: 15px;
+      }
+      .config-item {
+        flex-direction: column;
+        align-items: flex-start;
+        white-space: normal; /* 移动端恢复正常换行 */
+      }
+      .config-item label {
+        width: 100%;
+        text-align: left;
+        margin-bottom: 10px;
+      }
+      .config-item input,
+      .stock-info-item input,
+      .autocomplete input {
+        width: 100%;
+        min-width: unset; /* 移动端取消最小宽度 */
+        height: auto; /* 移动端恢复自动高度 */
+      }
+      .autocomplete {
+        width: 100%;
+        min-width: unset; /* 移动端取消最小宽度 */
+      }
+      h1 {
+        font-size: 2rem;
+      }
+      /* 移动端Logo适配 */
+      .logo-img {
+        width: 30px !important;
+        height: 30px !important;
+      }
+      h3 {
+        font-size: 1.3rem;
+      }
+      .main-config-area {
+        padding: 20px 15px;
+      }
+      /* 移动端田字格改为单列 */
+      .result-grid {
+        grid-template-columns: 1fr;
+      }
+      /* 移动端策略参数变回上下排列 */
+      .strategy-flex-container {
+        flex-direction: column;
+        gap: 20px;
+      }
+      .strategy-valuation-container {
+        flex: 1;
+        width: 100%;
+        min-width: unset; /* 移动端取消最小宽度 */
+        margin-left: 0; /* 移动端取消中线对齐 */
+        transform: none; /* 移动端取消位移 */
+      }
+      .strategy-basic-container {
+        padding-right: 0; /* 移动端取消右侧间距 */
+      }
+      /* 移动端股票信息项堆叠 */
+      .stock-info-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 15px;
+      }
+      .stock-info-item {
+        width: 100%;
+        min-width: unset; /* 移动端取消最小宽度 */
+      }
+      /* 移动端冻结窗格样式优化 */
+      .stock-name-display {
+        padding: 10px 15px;
+        font-size: 14px;
+      }
+      .stock-name-display .value {
+        font-size: 14px;
+      }
+    }
+
+    /* 入场动画 */
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .container > div {
+      animation: fadeInUp 0.5s ease forwards;
+    }
+
+    .container > div:nth-child(1) { animation-delay: 0.1s; }
+    .container > div:nth-child(2) { animation-delay: 0.2s; }
+    .container > div:nth-child(3) { animation-delay: 0.3s; }
+    .container > div:nth-child(4) { animation-delay: 0.4s; }
+    .container > div:nth-child(5) { animation-delay: 0.5s; }
+    
+    /* ========== 新增：统一右侧标题样式，确保对齐 ========== */
+    .strategy-valuation-container h4 {
+      margin: 0 0 20px 0; /* 移除顶部margin，确保第一个配置项和左侧对齐 */
+      padding-left: 10px;
+      position: relative;
+    }
+    
+    .strategy-valuation-container h4::before {
+      content: "";
+      display: inline-block;
+      width: 6px;
+      height: 24px;
+      background: linear-gradient(180deg, #3498db, #9b59b6);
+      margin-right: 10px;
+      border-radius: 3px;
+      box-shadow: 0 2px 8px rgba(52, 152, 219, 0.3);
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+    }
+  </style>
+  <script src="https://cdn.plot.ly/plotly-2.20.0.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.19.3/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+  <!-- 登录弹窗（永久隐藏，不再使用） -->
+  <div class="login-modal hidden" id="loginModal">
+    <div class="login-box">
+      <h2>用户登录</h2>
+      <input type="text" class="login-input" id="username" placeholder="请输入用户名" />
+      <input type="password" class="login-input" id="password" placeholder="请输入密码" />
+      <div class="login-error" id="loginError"></div>
+      <button class="btn login-btn" id="doLoginBtn">登录</button>
+    </div>
+  </div>
+
+  <!-- 股票名称显示区域（移到body最外层，确保全屏固定） -->
+  <div class="stock-name-display" id="stockNameDisplay">
+    <span class="label">当前分析股票：</span>
+    <span class="value" id="stockNameValue">贵州茅台 (sh.600519)</span>
+  </div>
+
+  <div class="container">
+    <!-- 登录状态提示（纯游客模式，无登录按钮） -->
+    <div class="login-status" id="loginStatus">
+      游客模式（所有功能可用）
+    </div>
+
+    <!-- 标题添加Logo -->
+    <h1>
+      <img src="static/logo/stock_logo.png" alt="股票定投分析logo" class="logo-img">
+      荔枝投研-股票定投助手
+    </h1>
+
+    <!-- 合并后的配置主容器 -->
+    <div class="main-config-area">
+      <!-- 数据源配置分区 -->
+      <div class="config-section">
+        <h3>股票选择</h3>
+        <div class="data-source-content active" id="baostock-tab">
+          <!-- ========== 优化：股票信息横向排列样式 ========== -->
+          <div class="stock-info-row">
+            <div class="stock-info-item">
+              <label>股票代码：</label>
+              <div class="autocomplete">
+                <input type="text" id="stockInput" value="贵州茅台" placeholder="输入名称如'贵州茅台'或代码'sh.600519'">
+                <div id="autocomplete-list" class="autocomplete-items"></div>
+              </div>
+            </div>
+            <div class="stock-info-item">
+              <label>开始时间：</label>
+              <input type="date" id="baostockStartDate" value="2019-07-01">
+            </div>
+            <div class="stock-info-item">
+              <label>结束时间：</label>
+              <input type="date" id="baostockEndDate" value="2020-07-01">
+            </div>
+          </div>
+
+          <!-- 移除原来的股票名称显示区域，移到body外层 -->
+        </div>
+      </div>
+
+      <!-- 基础策略参数配置分区（Flex并排） -->
+      <div class="config-section">
+        <h3>定投基础策略参数</h3>
+        <!-- ========== 优化：调整Flex间距和宽度 ========== -->
+        <div class="strategy-flex-container">
+          <!-- 基础策略参数容器（左侧） -->
+          <div class="strategy-basic-container">
+            <div class="config-item">
+              <label>初始本金（元）：</label>
+              <input type="number" id="initialCapital" value="100000" min="1000" />
+            </div>
+            <div class="config-item">
+              <label>开始时间：</label>
+              <input type="date" id="startDate" value="2019-07-15" />
+            </div>
+            <div class="config-item">
+              <label>停止时间：</label>
+              <input type="date" id="endDate" value="2020-07-15" />
+            </div>
+            <div class="config-item">
+              <label>定投金额（元/周）：</label>
+              <input type="number" id="investAmount" value="1000" min="100" />
+            </div>
+            <div class="config-item">
+              <label>底仓比例（%）：</label>
+              <input type="number" id="baseRatio" value="50" min="0" max="100" />
+            </div>
+            <div class="config-item">
+              <label>手续费率（%）：</label>
+              <input type="number" id="feeRate" value="0.1" step="0.01" min="0" max="1" />
+            </div>
+          </div>
+
+          <!-- 动态估值止盈参数容器（右侧）- 修改后样式 -->
+          <div class="strategy-valuation-container">
+            <h4>动态估值止盈策略参数</h4>
+            <div class="config-item">
+              <label>PE分位点下限（%）：</label>
+              <input type="number" id="peLowerQuantile" value="30" min="0" max="100" />
+            </div>
+            <div class="config-item">
+              <label>PE分位点上限（%）：</label>
+              <input type="number" id="peUpperQuantile" value="70" min="0" max="100" />
+            </div>
+          </div>
+        </div>
+
+        <!-- 加载按钮移到策略参数配置最下方 -->
+        <button class="btn" id="loadBaostockDataBtn">开始分析</button>
+      </div>
+    </div>
+
+    <!-- 日志区域 - 隐藏（不再前端显示） -->
+    <div class="log-area" id="logArea">
+      开始分析...
+    </div>
+
+    <!-- 结果汇总 - 田字格布局 -->
+    <div class="result-summary hidden" id="resultSummary">
+      <h4>📊 策略分析最终结果</h4>
+      <div class="result-grid" id="resultContent"></div>
+    </div>
+
+    <h3>图表1：股价 vs PE分位点 vs 每股盈利TTM</h3>
+    <div class="chart-area" id="chartPricePE" class="hidden"></div>
+
+    <h3>图表2：总收益率（含买卖点标注）</h3>
+    <div class="chart-area" id="chartReturn" class="hidden"></div>
+
+    <h3>图表3：累计投入金额 vs 累计收益</h3>
+    <div class="chart-area" id="chartInvestProfit" class="hidden"></div>
+
+    <h3>图表4：PE值走势（含均值参考）</h3>
+    <div class="chart-area" id="chartPE" class="hidden"></div>
+
+    <!-- ========== 调整：策略说明移到网页最下方 ========== -->
+    <div class="strategy-tip">
+      ✅ 策略说明：全程使用自有资金，无融资/杠杆/借款等操作
+    </div>
+
+  <script>
+    // 全局变量
+    let stockNames = [];
+    let isDataLoaded = false;
+    // 新增：存储当前股票名称和代码
+    let currentStockName = "";
+    let currentStockCode = "";
+
+    // 工具函数：日志仅输出到控制台（不在前端显示）
+    function log(msg) {
+      console.log(`${new Date().toLocaleString()} | ${msg}`); // 仅控制台输出
+    }
+
+    // 新增：获取当前日期（格式YYYY-MM-DD）
+    function getCurrentDate() {
+      const today = new Date();
+      const year = today.getFullYear();
+      const month = String(today.getMonth() + 1).padStart(2, '0');
+      const day = String(today.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // 新增：标准化股票代码（如600000 → sh.600000，000001 → sz.000001）
+    function normalizeStockCode(code) {
+      if (!code) return "";
+      // 如果已经是标准化代码（含sh./sz.），直接返回
+      if (code.startsWith("sh.") || code.startsWith("sz.")) return code;
+      // 沪市A股：60开头
+      if (/^60\d{4}$/.test(code)) return `sh.${code}`;
+      // 深市A股：00开头（主板）、30开头（创业板）
+      if (/^(00|30)\d{4}$/.test(code)) return `sz.${code}`;
+      // 北交所：8开头
+      if (/^8\d{4}$/.test(code)) return `bj.${code}`;
+      // 无法标准化的返回原代码
+      return code;
+    }
+
+    // 新增：更新股票名称显示区域
+    function updateStockNameDisplay(name, code) {
+      const displayEl = document.getElementById("stockNameDisplay");
+      const valueEl = document.getElementById("stockNameValue");
+      
+      if (name && code) {
+        currentStockName = name;
+        // 标准化代码后再存储
+        currentStockCode = normalizeStockCode(code);
+        valueEl.textContent = `${name} (${currentStockCode})`;
+        displayEl.classList.add("show");
+        // 同步更新输入框的值（确保一致性）
+        document.getElementById("stockInput").value = name;
+      } else {
+        displayEl.classList.remove("show");
+      }
+    }
+
+    // 移除登录状态检查函数，直接简化为游客模式
+    function checkLoginStatus() {
+      // 固定显示游客模式，无登录按钮
+      document.getElementById("loginStatus").innerHTML = `
+        游客模式（所有功能可用）
+      `;
+      // 初始化显示默认股票名称
+      updateStockNameDisplay("贵州茅台", "sh.600519");
+      // 直接加载股票名称列表（无需登录）
+      loadStockNames();
+    }
+
+    // 加载股票名称列表（无需登录，移除token相关逻辑）
+    async function loadStockNames() {
+      try {
+        // 仅使用基础请求头，不携带token
+        const headers = { "Content-Type": "application/json" };
+        
+        const response = await fetch("api/stock_names", {
+          headers: headers
+        });
+        const result = await response.json();
+        if (result.code === 200) {
+          stockNames = result.data;
+          autocomplete(document.getElementById("stockInput"), stockNames);
+          log(`✅ 加载股票名称列表成功，共${stockNames.length}条`);
+        }
+      } catch (e) {
+        log(`⚠️ 加载股票名称列表失败：${e.message}（可手动输入股票代码/名称）`);
+        // 失败后不处理，用户可手动输入
+      }
+    }
+
+    // 股票名称自动补全（失败不影响手动输入）
+    function autocomplete(inp, arr) {
+      // 如果无数据，直接返回（用户手动输入）
+      if (!arr || arr.length === 0) return;
+      
+      let currentFocus;
+      inp.addEventListener("input", function(e) {
+        let a, b, i, val = this.value;
+        closeAllLists();
+        if (!val) return false;
+        currentFocus = -1;
+        a = document.createElement("DIV");
+        a.setAttribute("id", this.id + "autocomplete-list");
+        a.setAttribute("class", "autocomplete-items");
+        this.parentNode.appendChild(a);
+        
+        for (i = 0; i < arr.length; i++) {
+          if (arr[i].toLowerCase().indexOf(val.toLowerCase()) > -1) {
+            b = document.createElement("DIV");
+            b.innerHTML = "<strong>" + arr[i].substr(0, val.length) + "</strong>";
+            b.innerHTML += arr[i].substr(val.length);
+            b.innerHTML += "<input type='hidden' value='" + arr[i] + "'>";
+            b.addEventListener("click", function(e) {
+              inp.value = this.getElementsByTagName("input")[0].value;
+              // 点击自动补全后，主动查询股票代码并更新显示
+              getStockInfoByInput(inp.value);
+              closeAllLists();
+            });
+            a.appendChild(b);
+          }
+        }
+      });
+
+      inp.addEventListener("keydown", function(e) {
+        let x = document.getElementById(this.id + "autocomplete-list");
+        if (x) x = x.getElementsByTagName("div");
+        if (e.keyCode == 40) {
+          currentFocus++;
+          addActive(x);
+        } else if (e.keyCode == 38) {
+          currentFocus--;
+          addActive(x);
+        } else if (e.keyCode == 13) {
+          e.preventDefault();
+          if (currentFocus > -1 && x) {
+            x[currentFocus].click();
+          } else {
+            // 回车时主动查询股票信息
+            getStockInfoByInput(inp.value);
+          }
+        }
+      });
+
+      function addActive(x) {
+        if (!x) return false;
+        removeActive(x);
+        if (currentFocus >= x.length) currentFocus = 0;
+        if (currentFocus < 0) currentFocus = (x.length - 1);
+        x[currentFocus].classList.add("autocomplete-active");
+      }
+
+      function removeActive(x) {
+        for (let i = 0; i < x.length; i++) {
+          x[i].classList.remove("autocomplete-active");
+        }
+      }
+
+      function closeAllLists(elmnt) {
+        let x = document.getElementsByClassName("autocomplete-items");
+        for (let i = 0; i < x.length; i++) {
+          if (elmnt != x[i] && elmnt != inp) {
+            x[i].parentNode.removeChild(x[i]);
+          }
+        }
+      }
+
+      document.addEventListener("click", function (e) {
+        closeAllLists(e.target);
+      });
+    }
+
+    // 新增：根据输入内容查询股票详细信息（调用后端/api/stock_info接口）
+    async function getStockInfoByInput(inputStr) {
+      if (!inputStr) return;
+      
+      try {
+        const headers = { "Content-Type": "application/json" };
+        // 先标准化输入的代码，再请求
+        const normalizedInput = normalizeStockCode(inputStr);
+        const response = await fetch(`api/stock_info?input=${encodeURIComponent(normalizedInput)}`, {
+          headers: headers
+        });
+        
+        if (!response.ok) throw new Error(`网络请求失败：${response.status}`);
+        const result = await response.json();
+        
+        if (result.code === 200 && result.data.name && result.data.code) {
+          updateStockNameDisplay(result.data.name, result.data.code);
+          log(`✅ 股票信息查询成功：${result.data.name} (${result.data.code})`);
+        } else {
+          // 如果后端没返回，尝试用输入的标准化代码作为兜底
+          updateStockNameDisplay(inputStr, normalizedInput);
+          log(`⚠️ 未查询到股票详细信息，使用标准化代码：${normalizedInput}`);
+        }
+      } catch (e) {
+        // 异常时也标准化代码并显示
+        const normalizedInput = normalizeStockCode(inputStr);
+        updateStockNameDisplay(inputStr, normalizedInput);
+        log(`❌ 查询股票信息失败，使用标准化代码兜底：${normalizedInput} | 错误：${e.message}`);
+      }
+    }
+
+    // 加载Baostock数据 + 自动分析（完全脱离登录依赖）
+    document.getElementById("loadBaostockDataBtn").addEventListener("click", async function() {
+      const btn = this;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="loading-spinner"></span>验证并分析中...';
+      log("开始验证Baostock数据可用性并准备自动分析...");
+      
+      try {
+        const stockInput = document.getElementById("stockInput").value.trim();
+        const startDate = document.getElementById("baostockStartDate").value;
+        // 强制使用当前日期作为结束日期
+        const endDate = getCurrentDate();
+        
+        // 前置校验1：必须输入股票信息
+        if (!stockInput) {
+          throw new Error("请输入股票名称/代码");
+        }
+        // 前置校验2：必须选择开始日期
+        if (!startDate) {
+          throw new Error("请选择开始日期");
+        }
+        // 前置校验3：确保有标准化的股票代码
+        if (!currentStockCode) {
+          // 主动查询股票信息
+          await getStockInfoByInput(stockInput);
+          // 如果还是没有，直接标准化输入值
+          if (!currentStockCode) {
+            currentStockCode = normalizeStockCode(stockInput);
+          }
+        }
+        // 前置校验4：标准化代码不能为空
+        if (!currentStockCode) {
+          throw new Error("无法识别的股票代码，请检查输入格式（如sh.600519、600000）");
+        }
+        
+        log(`📌 最终使用的股票代码：${currentStockCode} | 名称：${currentStockName || stockInput}`);
+        log(`📅 分析时间范围：${startDate} 至 ${endDate}（当前最新日期）`);
+        
+        // 1. 验证数据是否存在（无token，纯游客请求）
+        const headers = { "Content-Type": "application/json" };
+        
+        // 关键修复：传递标准化的currentStockCode，而非输入框原始值
+        const response = await fetch(`api/stock_data?code=${encodeURIComponent(currentStockCode)}&start_date=${startDate}&end_date=${endDate}`, {
+          headers: headers
+        });
+        
+        if (!response.ok) throw new Error(`网络请求失败：${response.status}（请检查后端服务是否运行）`);
+        const result = await response.json();
+        
+        if (result.code !== 200 || !result.data || result.data.length === 0) {
+          throw new Error("获取数据失败：" + (result.msg || "无数据（请确认股票代码和日期范围有效）"));
+        }
+        
+        // 核心优化：优先从后端返回结果提取股票名称和代码
+        let stockName = result.stock_name || currentStockName || stockInput;
+        let stockCode = result.stock_code || currentStockCode;
+        
+        // 更新股票名称显示
+        updateStockNameDisplay(stockName, stockCode);
+        
+        log(`✅ Baostock数据验证成功！共${result.data.length}条有效记录 | 股票：${stockName} (${stockCode})`);
+        document.getElementById("startDate").value = startDate;
+        document.getElementById("endDate").value = endDate;
+        isDataLoaded = true;
+
+        // 2. 数据验证成功后，自动触发分析
+        await analyzeStrategy();
+
+      } catch (error) {
+        log(`❌ 操作失败：${error.message}`);
+        isDataLoaded = false;
+        alert(`操作失败：${error.message}`); // 前端友好提示
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = "开始分析";
+      }
+    });
+
+    // 策略分析核心函数（完全脱离登录依赖）
+    async function analyzeStrategy() {
+      log("🚀 开始自动执行策略分析...");
+
+      // 隐藏所有图表和结果
+      document.getElementById("resultSummary").classList.add("hidden");
+      document.getElementById("chartPricePE").classList.add("hidden");
+      document.getElementById("chartReturn").classList.add("hidden");
+      document.getElementById("chartInvestProfit").classList.add("hidden");
+      document.getElementById("chartPE").classList.add("hidden");
+
+      try {
+        // 收集所有参数
+        const params = {
+          stockCode: currentStockCode, // 关键修复：使用标准化的代码
+          stockName: currentStockName || document.getElementById("stockInput").value.trim(),
+          baostockStartDate: document.getElementById("baostockStartDate").value,
+          baostockEndDate: getCurrentDate(), // 强制使用当前日期
+          initialCapital: document.getElementById("initialCapital").value,
+          startDate: document.getElementById("startDate").value,
+          endDate: document.getElementById("endDate").value,
+          investAmount: document.getElementById("investAmount").value,
+          baseRatio: document.getElementById("baseRatio").value,
+          feeRate: document.getElementById("feeRate").value,
+          peLowerQuantile: document.getElementById("peLowerQuantile").value,
+          peUpperQuantile: document.getElementById("peUpperQuantile").value
+        };
+
+        // 发送POST请求到后端分析接口（无token，纯游客请求）
+        const headers = { "Content-Type": "application/json" };
+        
+        const response = await fetch("api/analyze_strategy", {
+          method: "POST",
+          headers: headers,
+          body: JSON.stringify(params)
+        });
+
+        if (!response.ok) throw new Error(`后端请求失败：${response.status}（请检查分析接口是否正常）`);
+        const result = await response.json();
+
+        // 显示日志（仅控制台）
+        if (result.logs && result.logs.length > 0) {
+          result.logs.forEach(msg => log(msg));
+        }
+
+        // 处理分析结果中的股票名称更新
+        if (result.stock_name && result.stock_code) {
+          updateStockNameDisplay(result.stock_name, result.stock_code);
+          log(`✅ 策略分析返回股票信息：${result.stock_name} (${result.stock_code})`);
+        }
+
+        // 处理分析结果
+        if (result.success) {
+          // 显示结果汇总（田字格）
+          showResultSummary(result.result_summary);
+          
+          // 渲染图表
+          renderChart("chartPricePE", result.chart_data.chart1);
+          renderChart("chartReturn", result.chart_data.chart2);
+          renderChart("chartInvestProfit", result.chart_data.chart3);
+          renderChart("chartPE", result.chart_data.chart4);
+          
+          log("\n🎉 自动分析完成！所有图表已渲染");
+        } else {
+          log(`❌ 分析失败：${result.error || "未知错误"}`);
+          alert(`分析失败：${result.error || "未知错误"}`);
+        }
+
+      } catch (error) {
+        log(`❌ 分析请求异常：${error.message}`);
+        console.error(error);
+        alert(`分析请求异常：${error.message}\n请检查：1.后端服务是否运行 2.股票代码是否有效 3.日期范围是否合理`);
+      }
+    }
+
+    // 显示结果汇总（田字格布局）
+    function showResultSummary(summary) {
+      const resultContent = document.getElementById("resultContent");
+      let html = "";
+      
+      for (const [strategy, data] of Object.entries(summary)) {
+        html += `<div class="result-card">`;
+        html += `<div class="strategy-name">${strategy}</div>`;
+        html += `<div class="result-metric">`;
+        html += `<span>收益率</span>`;
+        html += `<span class="value">${data.收益率}</span>`;
+        html += `</div>`;
+        html += `<div class="result-metric">`;
+        html += `<span>收益金额</span>`;
+        html += `<span class="value">${data.收益金额}</span>`;
+        html += `</div>`;
+        if (data.最终仓位) {
+          html += `<div class="result-metric">`;
+          html += `<span>最终仓位</span>`;
+          html += `<span class="value">${data.最终仓位}</span>`;
+          html += `</div>`;
+        }
+        html += `</div>`;
+      }
+      
+      resultContent.innerHTML = html;
+      document.getElementById("resultSummary").classList.remove("hidden");
+    }
+
+    // 渲染图表（直接使用后端返回的Plotly数据）
+    function renderChart(chartId, chartData) {
+      const chartArea = document.getElementById(chartId);
+      chartArea.classList.remove("hidden");
+      
+      // 转换日期格式为Plotly可识别的格式
+      chartData.traces.forEach(trace => {
+        if (trace.x && trace.x.length > 0 && typeof trace.x[0] === "string") {
+          trace.x = trace.x.map(dateStr => new Date(dateStr));
+        }
+      });
+      
+      // 渲染图表
+      Plotly.newPlot(chartArea, chartData.traces, chartData.layout, { 
+        responsive: true,
+        displayModeBar: true
+      });
+    }
+
+    // 页面初始化
+    window.onload = function() {
+      // 初始化游客模式
+      checkLoginStatus();
+      
+      // 核心修改1：设置结束日期为当前最新日期
+      const currentDate = getCurrentDate();
+      document.getElementById("baostockEndDate").value = currentDate;
+      document.getElementById("endDate").value = currentDate;
+      log(`📅 页面初始化，结束日期已自动设为当前日期：${currentDate}`);
+      
+      // 为股票输入框添加失去焦点事件，自动查询股票信息
+      document.getElementById("stockInput").addEventListener("blur", function() {
+        const inputVal = this.value.trim();
+        if (inputVal && inputVal !== currentStockName) {
+          getStockInfoByInput(inputVal);
+        }
+      });
+      
+      // 为股票输入框添加回车事件
+      document.getElementById("stockInput").addEventListener("keyup", function(e) {
+        if (e.key === "Enter") {
+          const inputVal = this.value.trim();
+          if (inputVal) {
+            getStockInfoByInput(inputVal);
+          }
+        }
+      });
+      
+      log("✅ 页面初始化完成（纯游客模式，所有功能可用）");
+    };
+  </script>
+<!-- Code injected by live-server -->
+<script>
+	// <![CDATA[  <-- For SVG support
+	if ('WebSocket' in window) {
+		(function () {
+			function refreshCSS() {
+				var sheets = [].slice.call(document.getElementsByTagName("link"));
+				var head = document.getElementsByTagName("head")[0];
+				for (var i = 0; i < sheets.length; ++i) {
+					var elem = sheets[i];
+					var parent = elem.parentElement || head;
+					parent.removeChild(elem);
+					var rel = elem.rel;
+					if (elem.href && typeof rel != "string" || rel.length == 0 || rel.toLowerCase() == "stylesheet") {
+						var url = elem.href.replace(/(&|\?)_cacheOverride=\d+/, '');
+						elem.href = url + (url.indexOf('?') >= 0 ? '&' : '?') + '_cacheOverride=' + (new Date().valueOf());
+					}
+					parent.appendChild(elem);
+				}
+			}
+			var protocol = window.location.protocol === 'http:' ? 'ws://' : 'wss://';
+			var address = protocol + window.location.host + window.location.pathname + '/ws';
+			var socket = new WebSocket(address);
+			socket.onmessage = function (msg) {
+				if (msg.data == 'reload') window.location.reload();
+				else if (msg.data == 'refreshcss') refreshCSS();
+			};
+			if (sessionStorage && !sessionStorage.getItem('IsThisFirstTime_Log_From_LiveServer')) {
+				console.log('Live reload enabled.');
+				sessionStorage.setItem('IsThisFirstTime_Log_From_LiveServer', true);
+			}
+		})();
+	}
+	else {
+		console.error('Upgrade your browser. This Browser is NOT supported WebSocket for Live-Reloading.');
+	}
+	// ]]>
+</script>
+</body>
+</html>

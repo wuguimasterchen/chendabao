@@ -1,0 +1,6 @@
+Flask==2.3.3
+flask-cors==4.0.0
+baostock==0.8.8
+numpy==1.26.4
+pypinyin==0.50.0
+gunicorn==21.2.0  # 生产环境推荐的WSGI服务器
